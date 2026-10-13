@@ -14,6 +14,9 @@
     .shell{width:min(100%,430px);margin:0 auto}.topline{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px}
     .eyebrow{font-size:11px;letter-spacing:.22em;font-weight:800;color:#a2b0f5}h1{font-size:29px;letter-spacing:-.05em;line-height:1.1;margin:3px 0 4px;font-weight:900}.subhead{font-size:12px;color:#aab5d4}
     .head-actions{display:flex;gap:5px;align-items:center;flex-shrink:0}.sound-button{background:#1a2543;color:#dce8ff;border:1px solid #475b82;border-radius:11px;min-width:37px;height:40px;padding:0 8px;font-size:18px}.sound-button.off{opacity:.48;filter:grayscale(1)}.sound-button:active{transform:scale(.96)}
+    .audio-panel{display:flex;align-items:center;gap:10px;background:#142c42;border:1px solid #4a899b;border-radius:14px;padding:9px 11px;margin:0 0 12px}
+    .audio-start{background:linear-gradient(90deg,#61d5c5,#a3e2d5);color:#122e39;border:0;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:850;flex-shrink:0;min-height:44px}
+    .audio-state{font-size:12px;line-height:1.3;color:#deeeff}
     .help{border:1px solid #485577;border-radius:12px;background:#1a223e;color:#cbd5fa;padding:10px 12px;font-size:13px;font-weight:750}
     .card{background:linear-gradient(155deg,#1b2441d9,#131b31f7);border:1px solid #333e63;border-radius:19px;box-shadow:0 15px 40px #0004;padding:14px;margin-bottom:12px}
     .statrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.stat{background:#10182e;border-radius:13px;padding:10px 8px;min-width:0}.label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9daace;font-weight:750}.stat strong{font-weight:900;font-size:20px;display:block;margin-top:4px;white-space:nowrap;letter-spacing:-.035em}.stat:first-child strong{color:#ffdb86}.stat:last-child strong{color:#7ce5d8}
@@ -34,7 +37,8 @@
 </head>
 <body>
 <main class="shell">
-  <header class="topline"><div><div class="eyebrow">PROTOTYPE MOBILE • V1.1</div><h1>CHAIN <span style="color:#ffd190">REACTOR</span></h1><div class="subhead">Place. Déclenche. Multiplie.</div></div><div class="head-actions"><button id="musicToggle" class="sound-button" type="button" aria-label="Couper la musique" aria-pressed="true" title="Musique haute tension">♫</button><button id="fxToggle" class="sound-button" type="button" aria-label="Couper les bruitages" aria-pressed="true" title="Bruitages">🔊</button><button id="help" class="help" type="button">?</button></div></header>
+  <header class="topline"><div><div class="eyebrow">PROTOTYPE MOBILE • V1.2 (SON)</div><h1>CHAIN <span style="color:#ffd190">REACTOR</span></h1><div class="subhead">Place. Déclenche. Multiplie.</div></div><div class="head-actions"><button id="musicToggle" class="sound-button" type="button" aria-label="Couper la musique" aria-pressed="true" title="Musique haute tension">♫</button><button id="fxToggle" class="sound-button" type="button" aria-label="Couper les bruitages" aria-pressed="true" title="Bruitages">🔊</button><button id="help" class="help" type="button">?</button></div></header>
+  <div class="audio-panel"><button id="audioStart" class="audio-start" type="button">▶ Activer le son</button><span id="audioState" class="audio-state" role="status" aria-live="polite">Appuie ici pour autoriser la musique sur iPhone.</span></div>
   <section class="card" aria-label="Progression"><div class="statrow"><div class="stat"><div class="label">Manche</div><strong id="round">1</strong></div><div class="stat"><div class="label">Score total</div><strong id="total">0</strong></div><div class="stat"><div class="label">Record</div><strong id="best">0</strong></div></div><div class="goalhead"><span id="targetlabel">Objectif de la manche</span><strong id="target">45 pts</strong></div><div class="progress"><div id="bar"></div></div></section>
   <section class="card" aria-label="Plateau de jeu"><div class="sectiontitle"><strong>⚙️ Réacteur 3 × 3</strong><span id="placements">5 placements restants</span></div><div id="board" class="board" role="group" aria-label="Plateau de neuf cases"></div><div class="detail" id="hint">Choisis un objet, puis touche une case.</div><div class="log" id="log" aria-live="polite"></div></section>
   <section class="card" aria-label="Objets et actions"><div class="sectiontitle"><strong>Ton arsenal</strong><span>Choix libre</span></div><div id="tray" class="tray">
@@ -60,6 +64,7 @@
   const Sound=(()=>{
     const AudioContextClass=window.AudioContext||window.webkitAudioContext;
     let ctx,master,musicBus,fxBus,noiseBuffer,clock=null,nextStep=0,step=0;
+    const audioState=$('audioState'),audioStart=$('audioStart');
     let musicOn=true,fxOn=true;
     try{musicOn=localStorage.getItem('cr_music')!=='off';fxOn=localStorage.getItem('cr_fx')!=='off'}catch(e){}
     function controls(){
@@ -70,21 +75,45 @@
       f.setAttribute('aria-label',fxOn?'Couper les bruitages':'Activer les bruitages');f.title=fxOn?'Couper les bruitages':'Activer les bruitages';f.textContent=fxOn?'🔊':'🔇';
     }
     function setup(){
-      if(!AudioContextClass||ctx)return;
+      if(!AudioContextClass){audioState.textContent='Audio non disponible dans ce navigateur. Essaie Safari.';return}
+      if(ctx)return;
       try{
-        ctx=new AudioContextClass();master=ctx.createGain();master.gain.value=.62;master.connect(ctx.destination);
-        musicBus=ctx.createGain();musicBus.gain.value=musicOn?.33:0;musicBus.connect(master);
-        fxBus=ctx.createGain();fxBus.gain.value=fxOn?.74:0;fxBus.connect(master);
+        ctx=new AudioContextClass();master=ctx.createGain();master.gain.value=.85;master.connect(ctx.destination);
+        ctx.addEventListener('statechange',updateStatus);
+        musicBus=ctx.createGain();musicBus.gain.value=musicOn?.42:0;musicBus.connect(master);
+        fxBus=ctx.createGain();fxBus.gain.value=fxOn?.88:0;fxBus.connect(master);
         noiseBuffer=ctx.createBuffer(1,Math.floor(ctx.sampleRate*.32),ctx.sampleRate);
         const samples=noiseBuffer.getChannelData(0);
         for(let i=0;i<samples.length;i++)samples[i]=Math.random()*2-1;
-      }catch(e){ctx=null}
+      }catch(e){ctx=null;audioState.textContent='Erreur audio : '+String(e.message||e)}
+    }
+    function updateStatus(){
+      if(!ctx){audioState.textContent='Audio indisponible. Ouvre le jeu dans Safari.';return}
+      if(ctx.state==='running'){
+        audioState.textContent='Audio activé ✓ Si tu n’entends rien, vérifie le volume et le mode silencieux.';
+        audioStart.textContent='♪ Tester le son';
+      }else{
+        audioState.textContent='Audio '+ctx.state+' : touche « Activer le son ».';
+        audioStart.textContent='▶ Activer le son';
+      }
+    }
+    function runMusic(){
+      if(!ctx||!musicOn||clock||document.hidden)return;
+      nextStep=ctx.currentTime+.04;
+      clock=setInterval(schedule,80);
+      schedule();
     }
     function unlock(){
-      setup();if(!ctx)return;
-      if(ctx.state==='suspended')ctx.resume().catch(()=>{});
-      if(musicOn&&!clock){nextStep=ctx.currentTime+.045;clock=setInterval(schedule,80);schedule()}
+      setup();if(!ctx)return Promise.resolve(false);
+      // L'appel à resume() doit être fait pendant le toucher/clic, pas après un await.
+      let res;
+      try{res=(ctx.state==='running')?Promise.resolve():ctx.resume()}catch(e){updateStatus();return Promise.resolve(false)}
+      return Promise.resolve(res).then(()=>{
+        if(ctx.state==='running'){if(musicOn)runMusic();updateStatus();return true}
+        updateStatus();return false;
+      }).catch(()=>{updateStatus();return false});
     }
+
     function tone(freq,time,duration,vol,wave='sine',bus=musicBus,endFreq=0,cutoff=0){
       if(!ctx||!bus)return;
       const osc=ctx.createOscillator(),env=ctx.createGain();
@@ -125,10 +154,10 @@
       while(nextStep<ctx.currentTime+.16&&n++<5){musicStep(step,nextStep);step=(step+1)%64;nextStep+=60/132/2}
     }
     function stopMusic(){if(clock){clearInterval(clock);clock=null}if(musicBus&&ctx)musicBus.gain.setTargetAtTime(0,ctx.currentTime,.065)}
-    function setMusic(v){musicOn=v;try{localStorage.setItem('cr_music',v?'on':'off')}catch(e){}controls();if(musicOn){unlock();if(musicBus&&ctx)musicBus.gain.setTargetAtTime(.33,ctx.currentTime,.07)}else stopMusic()}
-    function setFX(v){fxOn=v;try{localStorage.setItem('cr_fx',v?'on':'off')}catch(e){}controls();if(v)unlock();if(fxBus&&ctx)fxBus.gain.setTargetAtTime(v?.74:0,ctx.currentTime,.025)}
+    function setMusic(v){musicOn=v;try{localStorage.setItem('cr_music',v?'on':'off')}catch(e){}controls();if(musicOn){unlock();if(musicBus&&ctx)musicBus.gain.setTargetAtTime(.42,ctx.currentTime,.07)}else stopMusic()}
+    function setFX(v){fxOn=v;try{localStorage.setItem('cr_fx',v?'on':'off')}catch(e){}controls();if(v)unlock();if(fxBus&&ctx)fxBus.gain.setTargetAtTime(v?.88:0,ctx.currentTime,.025)}
     function effect(name,power=1){
-      if(!fxOn)return;unlock();if(!ctx||ctx.state!=='running')return;
+      if(!fxOn)return;unlock();if(!ctx)return;
       const t=ctx.currentTime+.006,p=Math.min(12,Math.max(1,power));
       if(name==='bomb'){
         tone(190,t,.27,.50,'sine',fxBus,42);tone(100,t,.19,.23,'sawtooth',fxBus,38,300);noise(t,.22,.28,150,fxBus);
@@ -153,10 +182,26 @@
       }
     }
     controls();
-    document.addEventListener('pointerdown',unlock,{passive:true});
+    // Sur iOS tactile, l'activation est attribuée à touchend/pointerup/click, pas forcément pointerdown.
+    document.addEventListener('touchend',()=>{unlock()},{passive:true});
+    document.addEventListener('pointerup',()=>{unlock()},{passive:true});
+    document.addEventListener('click',()=>{unlock()});
     document.addEventListener('visibilitychange',()=>{
-      if(document.hidden){if(ctx&&ctx.state==='running')ctx.suspend().catch(()=>{})}
-      else if(ctx&&ctx.state==='running'&&musicOn&&!clock)unlock();
+      if(document.hidden){if(clock){clearInterval(clock);clock=null}}
+      else if(ctx){updateStatus();if(ctx.state==='running'&&musicOn)runMusic()}
+    });
+    audioStart.addEventListener('click',()=>{
+      // Le bouton de test réactive explicitement les deux canaux, même s'ils avaient été coupés précédemment.
+      setMusic(true);setFX(true);
+      setup();
+      // Préprogrammer les notes directement dans le geste utilisateur, même si resume() est asynchrone.
+      if(ctx){
+        const t=ctx.currentTime+.03;
+        tone(523.25,t,.27,.50,'sine',master);
+        tone(659.25,t+.20,.27,.50,'sine',master);
+        tone(783.99,t+.39,.38,.55,'triangle',master);
+      }
+      unlock().then(ok=>{if(!ok)audioState.textContent='Son bloqué. Essaie Safari, puis vérifie le volume et le mode silencieux.'});
     });
     $('musicToggle').addEventListener('click',()=>setMusic(!musicOn));
     $('fxToggle').addEventListener('click',()=>setFX(!fxOn));
