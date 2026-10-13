@@ -13,6 +13,7 @@
     button{font:inherit;cursor:pointer;touch-action:manipulation}button:focus-visible{outline:3px solid #f5d580;outline-offset:3px}
     .shell{width:min(100%,430px);margin:0 auto}.topline{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px}
     .eyebrow{font-size:11px;letter-spacing:.22em;font-weight:800;color:#a2b0f5}h1{font-size:29px;letter-spacing:-.05em;line-height:1.1;margin:3px 0 4px;font-weight:900}.subhead{font-size:12px;color:#aab5d4}
+    .head-actions{display:flex;gap:5px;align-items:center;flex-shrink:0}.sound-button{background:#1a2543;color:#dce8ff;border:1px solid #475b82;border-radius:11px;min-width:37px;height:40px;padding:0 8px;font-size:18px}.sound-button.off{opacity:.48;filter:grayscale(1)}.sound-button:active{transform:scale(.96)}
     .help{border:1px solid #485577;border-radius:12px;background:#1a223e;color:#cbd5fa;padding:10px 12px;font-size:13px;font-weight:750}
     .card{background:linear-gradient(155deg,#1b2441d9,#131b31f7);border:1px solid #333e63;border-radius:19px;box-shadow:0 15px 40px #0004;padding:14px;margin-bottom:12px}
     .statrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.stat{background:#10182e;border-radius:13px;padding:10px 8px;min-width:0}.label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9daace;font-weight:750}.stat strong{font-weight:900;font-size:20px;display:block;margin-top:4px;white-space:nowrap;letter-spacing:-.035em}.stat:first-child strong{color:#ffdb86}.stat:last-child strong{color:#7ce5d8}
@@ -33,7 +34,7 @@
 </head>
 <body>
 <main class="shell">
-  <header class="topline"><div><div class="eyebrow">PROTOTYPE MOBILE • V1</div><h1>CHAIN <span style="color:#ffd190">REACTOR</span></h1><div class="subhead">Place. Déclenche. Multiplie.</div></div><button id="help" class="help" type="button">? Règles</button></header>
+  <header class="topline"><div><div class="eyebrow">PROTOTYPE MOBILE • V1.1</div><h1>CHAIN <span style="color:#ffd190">REACTOR</span></h1><div class="subhead">Place. Déclenche. Multiplie.</div></div><div class="head-actions"><button id="musicToggle" class="sound-button" type="button" aria-label="Couper la musique" aria-pressed="true" title="Musique haute tension">♫</button><button id="fxToggle" class="sound-button" type="button" aria-label="Couper les bruitages" aria-pressed="true" title="Bruitages">🔊</button><button id="help" class="help" type="button">?</button></div></header>
   <section class="card" aria-label="Progression"><div class="statrow"><div class="stat"><div class="label">Manche</div><strong id="round">1</strong></div><div class="stat"><div class="label">Score total</div><strong id="total">0</strong></div><div class="stat"><div class="label">Record</div><strong id="best">0</strong></div></div><div class="goalhead"><span id="targetlabel">Objectif de la manche</span><strong id="target">45 pts</strong></div><div class="progress"><div id="bar"></div></div></section>
   <section class="card" aria-label="Plateau de jeu"><div class="sectiontitle"><strong>⚙️ Réacteur 3 × 3</strong><span id="placements">5 placements restants</span></div><div id="board" class="board" role="group" aria-label="Plateau de neuf cases"></div><div class="detail" id="hint">Choisis un objet, puis touche une case.</div><div class="log" id="log" aria-live="polite"></div></section>
   <section class="card" aria-label="Objets et actions"><div class="sectiontitle"><strong>Ton arsenal</strong><span>Choix libre</span></div><div id="tray" class="tray">
@@ -42,7 +43,7 @@
     <button type="button" class="item" data-pick="crystal"><span>💎</span><b>Cristal</b><small>Multiplie le score</small></button>
   </div><div class="actionrow"><button id="fire" class="primary" type="button">🔥 Déclencher la réaction</button><button id="undo" class="secondary" type="button">↶ Effacer</button></div><div class="buffs" id="buffs"></div></section>
   <p class="status" id="status">Chaque objet touché peut activer les suivants. Après chaque manche réussie, choisis un booster.</p>
-  <p class="foot">Démo indépendante · Tout fonctionne hors ligne · Aucun compte requis</p>
+  <p class="foot">Bande-son générée en direct · Sans téléchargement audio · Aucun compte requis</p>
 </main>
 <div id="overlay" class="overlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><h2 id="modalTitle"></h2><p id="modalText"></p><div class="choices" id="choices"></div></div></div>
 <script>
@@ -54,6 +55,114 @@
   let grid,selected,phase,round,total,best,levels,remaining,activated,last,scoreThisRound;
   const $=id=>document.getElementById(id);
   const board=$('board'),tray=$('tray'),overlay=$('overlay');
+  // Synthèse sonore 100 % locale : fonctionne sans MP3 ni serveur audio.
+  // iOS n'autorise Web Audio qu'après un geste de l'utilisateur.
+  const Sound=(()=>{
+    const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+    let ctx,master,musicBus,fxBus,noiseBuffer,clock=null,nextStep=0,step=0;
+    let musicOn=true,fxOn=true;
+    try{musicOn=localStorage.getItem('cr_music')!=='off';fxOn=localStorage.getItem('cr_fx')!=='off'}catch(e){}
+    function controls(){
+      const m=$('musicToggle'),f=$('fxToggle');
+      m.classList.toggle('off',!musicOn);m.setAttribute('aria-pressed',String(musicOn));
+      m.setAttribute('aria-label',musicOn?'Couper la musique':'Activer la musique');m.title=musicOn?'Couper la musique':'Activer la musique';m.textContent=musicOn?'♫':'♪';
+      f.classList.toggle('off',!fxOn);f.setAttribute('aria-pressed',String(fxOn));
+      f.setAttribute('aria-label',fxOn?'Couper les bruitages':'Activer les bruitages');f.title=fxOn?'Couper les bruitages':'Activer les bruitages';f.textContent=fxOn?'🔊':'🔇';
+    }
+    function setup(){
+      if(!AudioContextClass||ctx)return;
+      try{
+        ctx=new AudioContextClass();master=ctx.createGain();master.gain.value=.62;master.connect(ctx.destination);
+        musicBus=ctx.createGain();musicBus.gain.value=musicOn?.33:0;musicBus.connect(master);
+        fxBus=ctx.createGain();fxBus.gain.value=fxOn?.74:0;fxBus.connect(master);
+        noiseBuffer=ctx.createBuffer(1,Math.floor(ctx.sampleRate*.32),ctx.sampleRate);
+        const samples=noiseBuffer.getChannelData(0);
+        for(let i=0;i<samples.length;i++)samples[i]=Math.random()*2-1;
+      }catch(e){ctx=null}
+    }
+    function unlock(){
+      setup();if(!ctx)return;
+      if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+      if(musicOn&&!clock){nextStep=ctx.currentTime+.045;clock=setInterval(schedule,80);schedule()}
+    }
+    function tone(freq,time,duration,vol,wave='sine',bus=musicBus,endFreq=0,cutoff=0){
+      if(!ctx||!bus)return;
+      const osc=ctx.createOscillator(),env=ctx.createGain();
+      osc.type=wave;osc.frequency.setValueAtTime(Math.max(30,freq),time);
+      if(endFreq)osc.frequency.exponentialRampToValueAtTime(Math.max(30,endFreq),time+duration);
+      let output=osc;
+      if(cutoff){const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=cutoff;osc.connect(filter);output=filter}
+      output.connect(env);env.connect(bus);
+      env.gain.setValueAtTime(.0001,time);
+      env.gain.exponentialRampToValueAtTime(Math.max(.0002,vol),time+.012);
+      env.gain.exponentialRampToValueAtTime(.0001,time+duration);
+      osc.start(time);osc.stop(time+duration+.012);
+    }
+    function noise(time,duration,vol,highpass=1000,bus=fxBus){
+      if(!ctx||!noiseBuffer)return;
+      const src=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),env=ctx.createGain();
+      src.buffer=noiseBuffer;filter.type='highpass';filter.frequency.value=highpass;
+      src.connect(filter);filter.connect(env);env.connect(bus);
+      env.gain.setValueAtTime(Math.max(.0001,vol),time);
+      env.gain.exponentialRampToValueAtTime(.0001,time+duration);
+      src.start(time);src.stop(time+duration+.001);
+    }
+    function musicStep(pos,time){
+      // 132 BPM : pulsation sombre, basse syncopée, arpège croissant.
+      const beat=pos%16,bar=Math.floor(pos/16),low=round>=5?43:40;
+      if(beat%4===0){tone(120,time,.16,.26,'sine',musicBus,43);tone(62,time,.11,.09,'triangle',musicBus,42)}
+      if(beat%8===4){noise(time,.105,.12,1000,musicBus);tone(170,time,.07,.09,'triangle',musicBus,75)}
+      if(beat%2===1)noise(time,.037,.032,5500,musicBus);
+      const notes=[0,0,7,0,10,7,3,7,0,12,7,10,3,7,10,12];
+      if(beat%2===0){const hz=55*Math.pow(2,(notes[beat]+low-40)/12);tone(hz,time,.18,.16,'sawtooth',musicBus,0,320)}
+      if((beat+bar)%4===0){const arp=[220,261.63,293.66,349.23][Math.floor((beat+bar)/4)%4];tone(arp,time,.24,.058,'triangle',musicBus)}
+      if(beat===0)tone(55,time,.86,.085,'sine',musicBus);
+    }
+    function schedule(){
+      if(!ctx||ctx.state!=='running'||!musicOn||document.hidden)return;
+      if(nextStep<ctx.currentTime-.35)nextStep=ctx.currentTime+.035;
+      let n=0;
+      while(nextStep<ctx.currentTime+.16&&n++<5){musicStep(step,nextStep);step=(step+1)%64;nextStep+=60/132/2}
+    }
+    function stopMusic(){if(clock){clearInterval(clock);clock=null}if(musicBus&&ctx)musicBus.gain.setTargetAtTime(0,ctx.currentTime,.065)}
+    function setMusic(v){musicOn=v;try{localStorage.setItem('cr_music',v?'on':'off')}catch(e){}controls();if(musicOn){unlock();if(musicBus&&ctx)musicBus.gain.setTargetAtTime(.33,ctx.currentTime,.07)}else stopMusic()}
+    function setFX(v){fxOn=v;try{localStorage.setItem('cr_fx',v?'on':'off')}catch(e){}controls();if(v)unlock();if(fxBus&&ctx)fxBus.gain.setTargetAtTime(v?.74:0,ctx.currentTime,.025)}
+    function effect(name,power=1){
+      if(!fxOn)return;unlock();if(!ctx||ctx.state!=='running')return;
+      const t=ctx.currentTime+.006,p=Math.min(12,Math.max(1,power));
+      if(name==='bomb'){
+        tone(190,t,.27,.50,'sine',fxBus,42);tone(100,t,.19,.23,'sawtooth',fxBus,38,300);noise(t,.22,.28,150,fxBus);
+      }else if(name==='spark'){
+        tone(880,t,.16,.25,'sawtooth',fxBus,150,2500);tone(1400,t+.045,.12,.16,'triangle',fxBus,310);noise(t,.15,.19,2800,fxBus);
+      }else if(name==='crystal'){
+        [880,1109,1760].forEach((hz,i)=>tone(hz,t+i*.055,.37,.19,'sine',fxBus));
+      }else if(name==='combo'){
+        const hz=260*Math.pow(2,Math.min(8,p)/12);tone(hz,t,.2,.13,'triangle',fxBus);tone(hz*1.5,t+.045,.16,.10,'sine',fxBus);
+      }else if(name==='win'||name==='upgrade'){
+        [392,494,587,784].forEach((hz,i)=>tone(hz,t+i*.09,.34,.23,'triangle',fxBus));
+      }else if(name==='lose'){
+        tone(210,t,.58,.29,'sawtooth',fxBus,60,600);noise(t,.24,.10,480,fxBus);
+      }else if(name==='start'){
+        tone(90,t,.31,.27,'triangle',fxBus,200);noise(t,.08,.085,1700,fxBus);
+      }else if(name==='place'){
+        tone(270,t,.085,.12,'sine',fxBus,380);
+      }else if(name==='remove'){
+        tone(320,t,.11,.095,'triangle',fxBus,165);
+      }else if(name==='select'){
+        tone(520,t,.065,.07,'sine',fxBus);
+      }
+    }
+    controls();
+    document.addEventListener('pointerdown',unlock,{passive:true});
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden){if(ctx&&ctx.state==='running')ctx.suspend().catch(()=>{})}
+      else if(ctx&&ctx.state==='running'&&musicOn&&!clock)unlock();
+    });
+    $('musicToggle').addEventListener('click',()=>setMusic(!musicOn));
+    $('fxToggle').addEventListener('click',()=>setFX(!fxOn));
+    return {effect,unlock};
+  })();
+
   const number=n=>{
     if(n>=1e12)return (n/1e12).toFixed(2).replace('.',',')+' Bn';
     if(n>=1e9)return (n/1e9).toFixed(2).replace('.',',')+' Md';
@@ -91,10 +200,10 @@
     $('buffs').innerHTML=Object.entries(levels).filter(([,lv])=>lv>0).map(([key,lv])=>`<span class="buff">${UPGRADE[key].icon} ${UPGRADE[key].name} niv. ${lv}</span>`).join('')||'<span class="buff">Aucun booster pour l’instant</span>';
   }
   function tap(i){
-    if(phase==='aim'){if(!grid[i]){$('log').textContent='Choisis une case occupée.';return} detonate(i);return}
+    if(phase==='aim'){if(!grid[i]){$('log').textContent='Choisis une case occupée.';return} Sound.effect('start');detonate(i);return}
     if(phase!=='build')return;
-    if(grid[i]){grid[i]=null;remaining++;$('log').textContent='Objet retiré : placement récupéré.'}
-    else if(remaining>0){grid[i]=selected;remaining--;$('log').textContent=TYPES[selected].name+' placée.'}
+    if(grid[i]){grid[i]=null;remaining++;Sound.effect('remove');$('log').textContent='Objet retiré : placement récupéré.'}
+    else if(remaining>0){grid[i]=selected;remaining--;Sound.effect('place');$('log').textContent=TYPES[selected].name+' placée.'}
     else{$('log').textContent='Tu as utilisé tes 5 placements. Efface une case pour en changer.'}
     render();
   }
@@ -113,7 +222,7 @@
     const queue=[startAt];render();
     while(queue.length){
       const i=queue.shift(),type=grid[i];if(!type||activated.has(i))continue;
-      activated.add(i);chain++;raw+=TYPES[type].base;
+      activated.add(i);chain++;raw+=TYPES[type].base;Sound.effect(type,chain);if(chain>2&&chain%3===0)Sound.effect('combo',chain);
       if(type==='crystal')mult*=2+levels.prism;
       if(type==='bomb'){for(const j of neighbors(i,Math.min(levels.blast,2)))if(!activated.has(j)&&!queue.includes(j))queue.push(j)}
       if(type==='spark'){
@@ -132,24 +241,24 @@
     if(total>best){best=total;saveBest()}
     $('log').textContent='+'+number(scoreThisRound)+' points · '+chain+' objet'+(chain===1?'':'s')+' activé'+(chain===1?'':'s')+' · ×'+number(mult);
     phase='choose';render();await pause(420);
-    if(scoreThisRound>=goal())showUpgrade(chain,mult);
-    else showLost(chain,mult);
+    if(scoreThisRound>=goal()){Sound.effect('win');showUpgrade(chain,mult)}
+    else{Sound.effect('lose');showLost(chain,mult)}
   }
   function modal(title,body){$('modalTitle').textContent=title;$('modalText').textContent=body;$('choices').replaceChildren();overlay.hidden=false}
   function hide(){overlay.hidden=true}
   function option(icon,name,desc,click){const b=document.createElement('button');b.className='choice';b.type='button';const span=document.createElement('span');span.className='big';span.textContent=icon;const div=document.createElement('span');const label=document.createElement('b');label.textContent=name;const explain=document.createElement('small');explain.textContent=desc;div.append(label,explain);b.append(span,div);b.addEventListener('click',click);$('choices').append(b)}
   function showUpgrade(chain,mult){
     modal('⚡ Réaction réussie',`+${number(scoreThisRound)} points avec ${chain} activation(s) et un multiplicateur ×${number(mult)}. Choisis un booster permanent pour la prochaine manche.`);
-    Object.entries(UPGRADE).forEach(([key,u])=>option(u.icon,u.name+' · Niv. '+(levels[key]+1),u.desc,()=>{levels[key]++;next()}));
+    Object.entries(UPGRADE).forEach(([key,u])=>option(u.icon,u.name+' · Niv. '+(levels[key]+1),u.desc,()=>{Sound.effect('upgrade');levels[key]++;next()}));
   }
   function showLost(chain,mult){
     phase='gameover';render();modal('💥 Réacteur surchargé',`Tu as marqué ${number(scoreThisRound)} points, mais il en fallait ${number(goal())} pour franchir la manche ${round}. Score total : ${number(total)}.`);
-    option('↻','Recommencer','Repars de zéro et teste une autre stratégie.',start);
+    option('↻','Recommencer','Repars de zéro et teste une autre stratégie.',()=>{Sound.effect('select');start()});
   }
   $('fire').addEventListener('click',()=>{if(phase==='build'&&grid.some(Boolean)){phase='aim';$('log').textContent='Choisis soigneusement le premier objet.'}else if(phase==='aim'){phase='build';$('log').textContent='Tu peux déplacer tes objets.'}render()});
-  $('undo').addEventListener('click',()=>{if(phase==='build'){const i=grid.findLastIndex(Boolean);if(i>=0){grid[i]=null;remaining++;$('log').textContent='Dernier objet retiré.';render()}}});
-  for(const b of tray.querySelectorAll('[data-pick]'))b.addEventListener('click',()=>{if(phase==='build'){selected=b.dataset.pick;render()}});
-  $('help').addEventListener('click',()=>{
+  $('undo').addEventListener('click',()=>{if(phase==='build'){const i=grid.findLastIndex(Boolean);if(i>=0){grid[i]=null;remaining++;$('log').textContent='Dernier objet retiré.';Sound.effect('remove');render()}}});
+  for(const b of tray.querySelectorAll('[data-pick]'))b.addEventListener('click',()=>{if(phase==='build'){selected=b.dataset.pick;Sound.effect('select');render()}});
+  $('help').addEventListener('click',()=>{Sound.effect('select');
     modal('Comment jouer ?', '1. Sélectionne Bombe, Éclair ou Cristal. 2. Place jusqu’à 5 objets librement sur les 9 cases. 3. Appuie sur « Déclencher » puis touche l’objet de départ. 4. Atteins l’objectif de la manche pour choisir un booster permanent.');
     option('💣','Bombe','Active ses voisins orthogonaux. Un booster élargit sa portée.',hide);
     option('⚡','Éclair','Active l’objet disponible le plus proche, même à distance.',hide);
