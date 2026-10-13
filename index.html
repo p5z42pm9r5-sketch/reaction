@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101325">
+  <meta name="description" content="Chain Reactor — prototype mobile de combos et de réactions en chaîne.">
+  <title>Chain Reactor · Démo jouable</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f5f7ff;background:#0d1020;font-synthesis:none;-webkit-tap-highlight-color:transparent}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(ellipse at 45% -10%,#27305a 0%,#12182b 43%,#0d1020 85%)}
+    body{padding:max(14px,env(safe-area-inset-top)) 14px max(20px,env(safe-area-inset-bottom));user-select:none}
+    button{font:inherit;cursor:pointer;touch-action:manipulation}button:focus-visible{outline:3px solid #f5d580;outline-offset:3px}
+    .shell{width:min(100%,430px);margin:0 auto}.topline{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px}
+    .eyebrow{font-size:11px;letter-spacing:.22em;font-weight:800;color:#a2b0f5}h1{font-size:29px;letter-spacing:-.05em;line-height:1.1;margin:3px 0 4px;font-weight:900}.subhead{font-size:12px;color:#aab5d4}
+    .help{border:1px solid #485577;border-radius:12px;background:#1a223e;color:#cbd5fa;padding:10px 12px;font-size:13px;font-weight:750}
+    .card{background:linear-gradient(155deg,#1b2441d9,#131b31f7);border:1px solid #333e63;border-radius:19px;box-shadow:0 15px 40px #0004;padding:14px;margin-bottom:12px}
+    .statrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.stat{background:#10182e;border-radius:13px;padding:10px 8px;min-width:0}.label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9daace;font-weight:750}.stat strong{font-weight:900;font-size:20px;display:block;margin-top:4px;white-space:nowrap;letter-spacing:-.035em}.stat:first-child strong{color:#ffdb86}.stat:last-child strong{color:#7ce5d8}
+    .goalhead{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:#bac5e0;margin:13px 1px 8px}.goalhead strong{color:#fff}.progress{height:8px;background:#0c1226;border-radius:99px;overflow:hidden;border:1px solid #37415d}.progress>div{height:100%;width:0%;background:linear-gradient(90deg,#ef9c57,#ffe293);border-radius:99px;transition:width .25s}
+    .sectiontitle{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:1px 3px 11px}.sectiontitle strong{font-size:15px}.sectiontitle span{font-size:12px;color:#aeb9d9}
+    .board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;width:min(100%,330px);margin:0 auto}.tile{position:relative;aspect-ratio:1/1;min-width:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;border-radius:17px;border:2px dashed #3e496b;background:linear-gradient(140deg,#151e39,#11182c);color:#7282af;transition:transform .1s,border-color .15s,background .15s;overflow:hidden}
+    .tile .icon{font-size:clamp(28px,9vw,42px);line-height:1.15;filter:drop-shadow(0 5px 4px #0005)}.tile small{font-size:11px;letter-spacing:.01em;font-weight:750}.tile.filled{border-style:solid;border-color:#556b99;background:linear-gradient(155deg,#243353,#16223d);color:#cbd7ef}.tile[data-kind="bomb"]{border-color:#ef9f72}.tile[data-kind="spark"]{border-color:#77a8fb}.tile[data-kind="crystal"]{border-color:#b3a0ff}.tile:active{transform:scale(.96)}.tile.done{border-color:#66e5af;background:#214c50!important;box-shadow:inset 0 0 28px #36eab63b}.tile.hit{animation:flash .29s ease-in-out;box-shadow:0 0 25px #ffcc79b8;border-color:#ffeaaa!important}
+    @keyframes flash{0%{transform:scale(.90)}55%{transform:scale(1.08);background:#876542}100%{transform:scale(1)}}
+    .detail{text-align:center;min-height:32px;padding:8px 0 0;font-size:12px;color:#b6c4e4}.detail b{color:#fff}
+    .tray{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.item{border:1px solid #435377;background:#111b34;color:#e5ebff;border-radius:14px;min-height:82px;padding:7px 4px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px}.item span{font-size:28px}.item b{font-size:12px}.item small{font-size:10px;color:#a0b0d4}.item.active{background:#294063;border-color:#ffe09a;box-shadow:inset 0 0 0 1px #ffe09a,0 0 16px #f9c56d25}.item:disabled{opacity:.55}
+    .actionrow{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:11px}.primary{border:0;border-radius:14px;background:linear-gradient(100deg,#ffb363,#ffd993);color:#252037;padding:14px 12px;font-weight:900;font-size:15px;min-height:51px}.primary:disabled{background:#414b67;color:#a6afc9;cursor:not-allowed}.secondary{background:#252e49;border:1px solid #505e80;border-radius:14px;color:#dae5ff;padding:10px 14px;font-weight:750}.secondary:disabled{opacity:.4;cursor:not-allowed}
+    .buffs{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}.buff{font-size:11px;background:#213858;border:1px solid #3f6083;color:#b9dcf7;padding:5px 8px;border-radius:20px}.status{margin:0;color:#b9c6e5;font-size:12px;line-height:1.55;text-align:center}.log{min-height:35px;text-align:center;font-size:12px;color:#ffe0a4;font-weight:750;padding:8px 2px 0}
+    .overlay{position:fixed;inset:0;background:#060a18cb;z-index:20;display:flex;align-items:center;justify-content:center;overflow:auto;padding:22px 14px;backdrop-filter:blur(6px)}.overlay[hidden]{display:none}.modal{background:linear-gradient(145deg,#1c2947,#10172d);border:1px solid #67739a;border-radius:23px;max-width:440px;width:100%;box-shadow:0 30px 80px #000a;padding:20px;max-height:90vh;overflow:auto}.modal h2{font-size:26px;letter-spacing:-.04em;margin:0 0 6px}.modal p{color:#b5c3e1;font-size:13px;line-height:1.55;margin:5px 0 14px}.choices{display:grid;gap:9px}.choice{border:1px solid #52638d;text-align:left;background:#1d2c4f;border-radius:15px;color:#fff;padding:13px 14px;display:flex;gap:12px;align-items:center}.choice .big{font-size:30px;min-width:36px}.choice b{display:block;font-size:15px;margin-bottom:5px}.choice small{display:block;font-size:12px;color:#c1cfe9;line-height:1.45}.choice:active{transform:scale(.99);border-color:#ffdda0}.win{color:#7aeac6!important;font-size:14px!important;font-weight:900}.lost{color:#ff9b9b!important;font-size:14px!important;font-weight:900}.foot{font-size:11px;color:#7687ae;text-align:center;margin:8px 0}
+    @media (min-width:450px){body{padding-top:25px}.tile .icon{font-size:39px}}
+    @media (max-height:730px){.card{padding:11px;margin-bottom:9px}.tile{border-radius:14px}.board{width:min(100%,282px);gap:7px}.item{min-height:70px}.stat strong{font-size:18px}.detail{min-height:22px;padding-top:5px}}
+    @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+<main class="shell">
+  <header class="topline"><div><div class="eyebrow">PROTOTYPE MOBILE • V1</div><h1>CHAIN <span style="color:#ffd190">REACTOR</span></h1><div class="subhead">Place. Déclenche. Multiplie.</div></div><button id="help" class="help" type="button">? Règles</button></header>
+  <section class="card" aria-label="Progression"><div class="statrow"><div class="stat"><div class="label">Manche</div><strong id="round">1</strong></div><div class="stat"><div class="label">Score total</div><strong id="total">0</strong></div><div class="stat"><div class="label">Record</div><strong id="best">0</strong></div></div><div class="goalhead"><span id="targetlabel">Objectif de la manche</span><strong id="target">45 pts</strong></div><div class="progress"><div id="bar"></div></div></section>
+  <section class="card" aria-label="Plateau de jeu"><div class="sectiontitle"><strong>⚙️ Réacteur 3 × 3</strong><span id="placements">5 placements restants</span></div><div id="board" class="board" role="group" aria-label="Plateau de neuf cases"></div><div class="detail" id="hint">Choisis un objet, puis touche une case.</div><div class="log" id="log" aria-live="polite"></div></section>
+  <section class="card" aria-label="Objets et actions"><div class="sectiontitle"><strong>Ton arsenal</strong><span>Choix libre</span></div><div id="tray" class="tray">
+    <button type="button" class="item active" data-pick="bomb"><span>💣</span><b>Bombe</b><small>Voisins directs</small></button>
+    <button type="button" class="item" data-pick="spark"><span>⚡</span><b>Éclair</b><small>Saute d'une case</small></button>
+    <button type="button" class="item" data-pick="crystal"><span>💎</span><b>Cristal</b><small>Multiplie le score</small></button>
+  </div><div class="actionrow"><button id="fire" class="primary" type="button">🔥 Déclencher la réaction</button><button id="undo" class="secondary" type="button">↶ Effacer</button></div><div class="buffs" id="buffs"></div></section>
+  <p class="status" id="status">Chaque objet touché peut activer les suivants. Après chaque manche réussie, choisis un booster.</p>
+  <p class="foot">Démo indépendante · Tout fonctionne hors ligne · Aucun compte requis</p>
+</main>
+<div id="overlay" class="overlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><h2 id="modalTitle"></h2><p id="modalText"></p><div class="choices" id="choices"></div></div></div>
+<script>
+(() => {
+  'use strict';
+  const TYPES={bomb:{icon:'💣',name:'Bombe',base:25},spark:{icon:'⚡',name:'Éclair',base:20},crystal:{icon:'💎',name:'Cristal',base:15}};
+  const UPGRADE={blast:{icon:'💥',name:'Onde de choc',desc:'Les bombes touchent aussi les diagonales. Niveau 2 : leur ligne et leur colonne entières.'},arc:{icon:'⚡',name:'Double arc',desc:'Chaque éclair touche une case supplémentaire par niveau.'},prism:{icon:'💎',name:'Prisme instable',desc:'Chaque cristal multiplie le score par 3, puis 4, puis 5… au lieu de 2.'}};
+  const MAX_PLACES=5;
+  let grid,selected,phase,round,total,best,levels,remaining,activated,last,scoreThisRound;
+  const $=id=>document.getElementById(id);
+  const board=$('board'),tray=$('tray'),overlay=$('overlay');
+  const number=n=>{
+    if(n>=1e12)return (n/1e12).toFixed(2).replace('.',',')+' Bn';
+    if(n>=1e9)return (n/1e9).toFixed(2).replace('.',',')+' Md';
+    if(n>=1e6)return (n/1e6).toFixed(2).replace('.',',')+' M';
+    if(n>=1e4)return (n/1e3).toFixed(1).replace('.',',')+' k';
+    return Math.floor(n).toLocaleString('fr-FR');
+  };
+  function getBest(){try{return Number(localStorage.getItem('chain_reactor_best')||0)||0}catch(e){return 0}}
+  function saveBest(){try{localStorage.setItem('chain_reactor_best',String(best))}catch(e){}}
+  function goal(){return Math.ceil(45*Math.pow(1.85,round-1))}
+  function start(){grid=Array(9).fill(null);selected='bomb';phase='build';round=1;total=0;best=getBest();levels={blast:0,arc:0,prism:0};remaining=MAX_PLACES;activated=new Set();last=-1;scoreThisRound=0;hide();render();$('log').textContent=''}
+  function next(){round++;grid.fill(null);remaining=MAX_PLACES;activated.clear();phase='build';selected='bomb';last=-1;scoreThisRound=0;hide();$('log').textContent='Nouveau plateau !';render()}
+  function render(){
+    $('round').textContent=round;
+    $('total').textContent=number(total);
+    $('best').textContent=number(best);
+    $('target').textContent=number(goal())+' pts';
+    $('bar').style.width=Math.min(100,Math.floor(scoreThisRound/goal()*100))+'%';
+    $('targetlabel').textContent=phase==='build'||phase==='aim'?'Objectif de la manche':'Score de la manche : '+number(scoreThisRound);
+    $('placements').textContent=phase==='resolving'?'Réaction en cours…':remaining+' placement'+(remaining===1?'':'s')+' restant'+(remaining===1?'':'s');
+    board.replaceChildren();
+    grid.forEach((type,i)=>{
+      const b=document.createElement('button');b.type='button';b.className='tile'+(type?' filled':'')+(activated.has(i)?' done':'')+(last===i?' hit':'');
+      if(type)b.dataset.kind=type;
+      b.innerHTML=type?`<span class="icon">${TYPES[type].icon}</span><small>${TYPES[type].name}</small>`:'<span class="icon" style="font-size:25px">+</span>';
+      b.setAttribute('aria-label','Case '+(i+1)+(type?' : '+TYPES[type].name:' : vide'));
+      b.disabled=['resolving','choose','gameover'].includes(phase);
+      b.addEventListener('click',()=>tap(i));board.append(b);
+    });
+    for(const b of tray.querySelectorAll('[data-pick]')){b.classList.toggle('active',b.dataset.pick===selected);b.disabled=phase!=='build'}
+    $('fire').textContent=phase==='aim'?'↩ Revenir au placement':phase==='resolving'?'⏳ Réaction en cours…':'🔥 Déclencher la réaction';
+    $('fire').disabled=!['build','aim'].includes(phase)||(phase==='build'&&!grid.some(Boolean));
+    $('undo').disabled=phase!=='build'||!grid.some(Boolean);
+    $('hint').innerHTML=phase==='aim'?'<b>Touche l’objet de départ</b> pour lancer la chaîne.':phase==='build'?(remaining===0?'<b>Plateau prêt :</b> déclenche la réaction.':'<b>Astuce :</b> place bombes et éclairs près des cristaux.'):phase==='resolving'?'Les réactions se propagent…':'Les boosters modifient tes prochaines réactions.';
+    $('buffs').innerHTML=Object.entries(levels).filter(([,lv])=>lv>0).map(([key,lv])=>`<span class="buff">${UPGRADE[key].icon} ${UPGRADE[key].name} niv. ${lv}</span>`).join('')||'<span class="buff">Aucun booster pour l’instant</span>';
+  }
+  function tap(i){
+    if(phase==='aim'){if(!grid[i]){$('log').textContent='Choisis une case occupée.';return} detonate(i);return}
+    if(phase!=='build')return;
+    if(grid[i]){grid[i]=null;remaining++;$('log').textContent='Objet retiré : placement récupéré.'}
+    else if(remaining>0){grid[i]=selected;remaining--;$('log').textContent=TYPES[selected].name+' placée.'}
+    else{$('log').textContent='Tu as utilisé tes 5 placements. Efface une case pour en changer.'}
+    render();
+  }
+  function neighbors(i,mode){
+    const row=Math.floor(i/3),col=i%3,arr=[];
+    for(let j=0;j<9;j++){
+      if(j===i||!grid[j])continue;
+      const r=Math.floor(j/3),c=j%3,dr=Math.abs(r-row),dc=Math.abs(c-col);
+      if((mode===0&&dr+dc===1)||(mode===1&&Math.max(dr,dc)===1)||(mode>=2&&(dr===0||dc===0)))arr.push(j);
+    }
+    return arr;
+  }
+  const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  async function detonate(startAt){
+    phase='resolving';activated.clear();last=-1;let chain=0,raw=0,mult=1;
+    const queue=[startAt];render();
+    while(queue.length){
+      const i=queue.shift(),type=grid[i];if(!type||activated.has(i))continue;
+      activated.add(i);chain++;raw+=TYPES[type].base;
+      if(type==='crystal')mult*=2+levels.prism;
+      if(type==='bomb'){for(const j of neighbors(i,Math.min(levels.blast,2)))if(!activated.has(j)&&!queue.includes(j))queue.push(j)}
+      if(type==='spark'){
+        const candidates=grid.map((t,j)=>t&&!activated.has(j)&&j!==i&&!queue.includes(j)?j:null).filter(j=>j!==null);
+        candidates.sort((a,b)=>{
+          const d=j=>Math.abs(Math.floor(j/3)-Math.floor(i/3))+Math.abs(j%3-i%3);
+          return d(a)-d(b)||a-b;
+        });
+        queue.push(...candidates.slice(0,1+levels.arc));
+      }
+      last=i;$('log').textContent='Chaîne ×'+chain+' · Multiplicateur ×'+number(mult);
+      render();await pause(285);
+    }
+    last=-1;
+    scoreThisRound=Math.round(raw*mult);total+=scoreThisRound;
+    if(total>best){best=total;saveBest()}
+    $('log').textContent='+'+number(scoreThisRound)+' points · '+chain+' objet'+(chain===1?'':'s')+' activé'+(chain===1?'':'s')+' · ×'+number(mult);
+    phase='choose';render();await pause(420);
+    if(scoreThisRound>=goal())showUpgrade(chain,mult);
+    else showLost(chain,mult);
+  }
+  function modal(title,body){$('modalTitle').textContent=title;$('modalText').textContent=body;$('choices').replaceChildren();overlay.hidden=false}
+  function hide(){overlay.hidden=true}
+  function option(icon,name,desc,click){const b=document.createElement('button');b.className='choice';b.type='button';const span=document.createElement('span');span.className='big';span.textContent=icon;const div=document.createElement('span');const label=document.createElement('b');label.textContent=name;const explain=document.createElement('small');explain.textContent=desc;div.append(label,explain);b.append(span,div);b.addEventListener('click',click);$('choices').append(b)}
+  function showUpgrade(chain,mult){
+    modal('⚡ Réaction réussie',`+${number(scoreThisRound)} points avec ${chain} activation(s) et un multiplicateur ×${number(mult)}. Choisis un booster permanent pour la prochaine manche.`);
+    Object.entries(UPGRADE).forEach(([key,u])=>option(u.icon,u.name+' · Niv. '+(levels[key]+1),u.desc,()=>{levels[key]++;next()}));
+  }
+  function showLost(chain,mult){
+    phase='gameover';render();modal('💥 Réacteur surchargé',`Tu as marqué ${number(scoreThisRound)} points, mais il en fallait ${number(goal())} pour franchir la manche ${round}. Score total : ${number(total)}.`);
+    option('↻','Recommencer','Repars de zéro et teste une autre stratégie.',start);
+  }
+  $('fire').addEventListener('click',()=>{if(phase==='build'&&grid.some(Boolean)){phase='aim';$('log').textContent='Choisis soigneusement le premier objet.'}else if(phase==='aim'){phase='build';$('log').textContent='Tu peux déplacer tes objets.'}render()});
+  $('undo').addEventListener('click',()=>{if(phase==='build'){const i=grid.findLastIndex(Boolean);if(i>=0){grid[i]=null;remaining++;$('log').textContent='Dernier objet retiré.';render()}}});
+  for(const b of tray.querySelectorAll('[data-pick]'))b.addEventListener('click',()=>{if(phase==='build'){selected=b.dataset.pick;render()}});
+  $('help').addEventListener('click',()=>{
+    modal('Comment jouer ?', '1. Sélectionne Bombe, Éclair ou Cristal. 2. Place jusqu’à 5 objets librement sur les 9 cases. 3. Appuie sur « Déclencher » puis touche l’objet de départ. 4. Atteins l’objectif de la manche pour choisir un booster permanent.');
+    option('💣','Bombe','Active ses voisins orthogonaux. Un booster élargit sa portée.',hide);
+    option('⚡','Éclair','Active l’objet disponible le plus proche, même à distance.',hide);
+    option('💎','Cristal','Chaque cristal activé multiplie le score de la manche par 2 (ou plus).',hide);
+    option('✓','Jouer','Fermer les règles et retourner au plateau.',hide);
+  });
+  start();
+})();
+</script>
+</body>
+</html>
